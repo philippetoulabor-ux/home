@@ -1,204 +1,146 @@
-import React, { useState, useRef, useEffect } from 'react'
-import { Canvas, useThree } from '@react-three/fiber'
-import { OrbitControls, Center, Bounds, useBounds } from '@react-three/drei'
+import { useState, useRef, useCallback, useLayoutEffect, useEffect } from 'react'
+import { Canvas } from '@react-three/fiber'
 import * as THREE from 'three'
-import { Model } from './raum'
+import { Model } from './Raum'
+import {
+  BlenderSceneSetup,
+  BLENDER_CAMERA_FOV_DEG,
+  BLENDER_CAMERA_PERSPECTIVE,
+  TONE_MAPPING_EXPOSURE,
+} from './BlenderSceneSetup'
+import { ASPECT_CLAMP_MAX, ASPECT_CLAMP_MIN, SceneControls } from './SceneControls'
 
-function ClickCapture({ onClickObject }) {
-  const { camera, gl, scene } = useThree()
+function getClampedCanvasStyle() {
+  const aspect = window.innerWidth / window.innerHeight
 
-  useEffect(() => {
-    const raycaster = new THREE.Raycaster()
-    const handler = (event) => {
-      const rect = gl.domElement.getBoundingClientRect()
-      const x = ((event.clientX - rect.left) / rect.width) * 2 - 1
-      const y = -((event.clientY - rect.top) / rect.height) * 2 + 1
-      raycaster.setFromCamera({ x, y }, camera)
-      const objects = scene.children
-      const intersects = raycaster.intersectObjects(objects, true)
-      if (intersects.length) {
-        onClickObject(intersects[0].object)
-      }
+  if (aspect < ASPECT_CLAMP_MIN) {
+    return {
+      width: `min(100vw, calc(100vh * ${ASPECT_CLAMP_MIN}))`,
+      height: '100vh',
     }
+  }
 
-    gl.domElement.addEventListener('pointerdown', handler)
-    return () => gl.domElement.removeEventListener('pointerdown', handler)
-  }, [camera, gl, scene, onClickObject])
-
-  return null
-}
-
-function SaveControlsState({ controlsRef }) {
-  useEffect(() => {
-    let timeout
-    const save = () => {
-      if (controlsRef.current) {
-        controlsRef.current.saveState()
-      } else {
-        timeout = window.setTimeout(save, 50)
-      }
+  if (aspect > ASPECT_CLAMP_MAX) {
+    return {
+      width: '100vw',
+      height: `min(100vh, calc(100vw / ${ASPECT_CLAMP_MAX}))`,
     }
-    save()
-    return () => {
-      if (timeout) window.clearTimeout(timeout)
-    }
-  }, [controlsRef])
+  }
 
-  return null
-}
-
-function ZoomController({ object }) {
-  const bounds = useBounds()
-
-  useEffect(() => {
-    if (!object) return
-    bounds.refresh(object).fit({ padding: 1.2, duration: 0.8 })
-  }, [bounds, object])
-
-  return null
-}
-
-function BackController({ controlsRef, startStateRef, trigger, onDone }) {
-  const { camera } = useThree()
-
-  useEffect(() => {
-    if (!trigger) return
-    const startState = startStateRef.current
-    if (!startState || !controlsRef.current) {
-      onDone && onDone()
-      return
-    }
-
-    const duration = 800
-    const startTime = performance.now()
-
-    const fromPos = camera.position.clone()
-    const toPos = startState.position.clone()
-    const fromQuat = camera.quaternion.clone()
-    const toQuat = startState.quaternion.clone()
-    const fromTarget = controlsRef.current.target.clone()
-    const toTarget = startState.target.clone()
-
-    // disable controls during animation
-    const controls = controlsRef.current
-    const prevEnabled = controls.enabled
-    controls.enabled = false
-
-    const ease = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
-
-    let raf = null
-    const tick = (now) => {
-      const elapsed = now - startTime
-      const t = Math.min(1, elapsed / duration)
-      const e = ease(t)
-
-      camera.position.lerpVectors(fromPos, toPos, e)
-      // quaternion slerp
-      camera.quaternion.copy(fromQuat).slerp(toQuat, e)
-      // target lerp
-      controls.target.lerpVectors(fromTarget, toTarget, e)
-      controls.update()
-
-      if (t < 1) raf = requestAnimationFrame(tick)
-      else {
-        controls.enabled = prevEnabled
-        try { controls.saveState && controls.saveState() } catch (err) {}
-        onDone && onDone()
-      }
-    }
-
-    raf = requestAnimationFrame(tick)
-    return () => {
-      if (raf) cancelAnimationFrame(raf)
-      controls.enabled = prevEnabled
-    }
-  }, [trigger, controlsRef, startStateRef, camera, onDone])
-
-  return null
-}
-
-function RecordStartView({ controlsRef, startStateRef }) {
-  const { camera } = useThree()
-
-  useEffect(() => {
-    let raf
-    const record = () => {
-      if (controlsRef.current) {
-        startStateRef.current = {
-          position: camera.position.clone(),
-          quaternion: camera.quaternion.clone(),
-          target: controlsRef.current.target.clone(),
-        }
-      } else {
-        raf = window.requestAnimationFrame(record)
-      }
-    }
-    record()
-    return () => {
-      if (raf) window.cancelAnimationFrame(raf)
-    }
-  }, [camera, controlsRef, startStateRef])
-
-  return null
+  return { width: '100vw', height: '100vh' }
 }
 
 function App() {
-  const [isZoomed, setIsZoomed] = useState(false)
-  const [clickedObject, setClickedObject] = useState(null)
-  const [backTrigger, setBackTrigger] = useState(false)
+  const [isFocused, setIsFocused] = useState(false)
+  const [focusObject, setFocusObject] = useState(null)
+  const [returnHomeTrigger, setReturnHomeTrigger] = useState(0)
+  const [canvasWrapStyle, setCanvasWrapStyle] = useState(getClampedCanvasStyle)
+  const canvasWrapRef = useRef(null)
   const controlsRef = useRef()
-  const rootRef = useRef()
-  const startStateRef = useRef(null)
+  const homeStateRef = useRef(null)
+
+  const handleFocusComplete = useCallback(() => setIsFocused(true), [])
+  const handleReturnComplete = useCallback(() => {
+    setIsFocused(false)
+    setFocusObject(null)
+  }, [])
+
+  useLayoutEffect(() => {
+    const update = () => setCanvasWrapStyle(getClampedCanvasStyle())
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+
+  useEffect(() => {
+    const element = canvasWrapRef.current
+    if (!element || typeof ResizeObserver === 'undefined') return
+
+    const observer = new ResizeObserver(() => {
+      setCanvasWrapStyle(getClampedCanvasStyle())
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+
+  const roomViewActive = focusObject == null
 
   return (
-    <div style={{ width: '100vw', height: '100vh', background: '#1a1a1a', position: 'relative' }}>
-      {isZoomed && (
+    <div
+      style={{
+        width: '100vw',
+        height: '100vh',
+        background: '#1a1a1a',
+        position: 'relative',
+        touchAction: 'none',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      {isFocused && (
         <div style={{ position: 'fixed', top: 20, left: 20, zIndex: 2147483647 }}>
           <button
-            onClick={() => {
-              setBackTrigger(true)
+            onClick={() => setReturnHomeTrigger((n) => n + 1)}
+            style={{
+              padding: '10px 14px',
+              fontSize: 15,
+              cursor: 'pointer',
+              background: '#ff2e63',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 6,
             }}
-            style={{ padding: '10px 14px', fontSize: 15, cursor: 'pointer', background: '#ff2e63', color: '#fff', border: 'none', borderRadius: 6 }}
           >
-            Back
+            Zurück
           </button>
         </div>
       )}
 
-      <Canvas camera={{ position: [0, 0, 1.7], fov: 50 }}>
-        <ambientLight intensity={2} />
-        <directionalLight position={[10, 10, 5]} intensity={1} />
+      <div ref={canvasWrapRef} style={canvasWrapStyle}>
+        <Canvas
+          style={{ display: 'block', width: '100%', height: '100%' }}
+          camera={{
+            fov: BLENDER_CAMERA_FOV_DEG,
+            near: BLENDER_CAMERA_PERSPECTIVE.near,
+            far: BLENDER_CAMERA_PERSPECTIVE.far,
+            position: BLENDER_CAMERA_PERSPECTIVE.position,
+          }}
+          gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping }}
+          onCreated={({ gl, camera, size }) => {
+            gl.toneMappingExposure = TONE_MAPPING_EXPOSURE
+            if (size.width > 0 && size.height > 0) {
+              camera.aspect = size.width / size.height
+              camera.updateProjectionMatrix()
+            }
+          }}
+        >
+          <color attach="background" args={['#1a1a1a']} />
 
-        <Bounds clip observe>
-          <Center>
-            <Model groupRef={rootRef} />
-            <ClickCapture
-              onClickObject={(object) => {
-                if (object.name === 'Raum') return
-                setClickedObject(object)
-                setIsZoomed(true)
-              }}
-            />
-            <ZoomController object={clickedObject} />
-            <SaveControlsState controlsRef={controlsRef} />
-            <RecordStartView controlsRef={controlsRef} startStateRef={startStateRef} />
-            <BackController
-              controlsRef={controlsRef}
-              startStateRef={startStateRef}
-              trigger={backTrigger}
-              onDone={() => {
-                setIsZoomed(false)
-                setClickedObject(null)
-                setBackTrigger(false)
-              }}
-            />
-          </Center>
-        </Bounds>
+          <SceneControls
+            controlsRef={controlsRef}
+            homeStateRef={homeStateRef}
+            focusObject={focusObject}
+            returnHomeTrigger={returnHomeTrigger}
+            onFocusComplete={handleFocusComplete}
+            onReturnComplete={handleReturnComplete}
+          />
 
-        <OrbitControls ref={controlsRef} makeDefault enableZoom={false} />
-      </Canvas>
+          <BlenderSceneSetup
+            controlsRef={controlsRef}
+            homeStateRef={homeStateRef}
+            roomViewActive={roomViewActive}
+          />
+
+          <Model
+            onObjectClick={(object) => {
+              setFocusObject(object)
+            }}
+          />
+        </Canvas>
+      </div>
     </div>
   )
 }
 
-export default App;
+export default App

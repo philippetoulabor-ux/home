@@ -1,164 +1,150 @@
-
-import React, { useMemo, useRef, useEffect } from 'react'
-import { useGLTF, useBounds } from '@react-three/drei'
+import { useLayoutEffect, useMemo } from 'react'
+import { useGLTF } from '@react-three/drei'
 import { useThree } from '@react-three/fiber'
-import * as THREE from 'three'
+import { GLB_PATH } from './BlenderSceneSetup'
+import { applyLightmaps } from './applyLightmaps'
+import { patchGltfMaterials } from './gltfMaterialPatches'
 
-export function Model({ onZoomChange, groupRef: externalGroupRef, ...props }) {
-  console.log('[Model] render start')
-  const { nodes, materials } = useGLTF('/raum-transformed.glb')
-  const bounds = useBounds()
-  const localGroupRef = useRef()
-  const groupRef = externalGroupRef || localGroupRef
+/*
+Auto-generated mesh layout from:
+  npx gltfjsx public/home.glb --transform --keepnames
+Source: public/home.glb > public/home-transformed.glb
+*/
+
+export function Model({ onObjectClick, ...props }) {
+  const { nodes, materials } = useGLTF(GLB_PATH)
+  const invalidate = useThree((state) => state.invalidate)
+
+  useLayoutEffect(() => {
+    patchGltfMaterials(materials, nodes)
+    let cancelled = false
+    applyLightmaps(nodes).then(() => {
+      if (!cancelled) {
+        patchGltfMaterials(materials, nodes)
+        invalidate()
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [materials, nodes, invalidate])
 
   const clickableMeshes = useMemo(
     () => [
       {
+        name: 'middleman',
         geometry: nodes.middleman.geometry,
         material: materials['Material.001'],
-        position: [-3.329, 0.03, -3.634],
+        position: [-3.179, 0.873, -3],
       },
       {
-        geometry: nodes.Regalbretter.geometry,
+        name: 'mm-bretter',
+        geometry: nodes['mm-bretter'].geometry,
         material: materials['MDF Board'],
-        position: [-3.179, 0.44, -2.884],
-        rotation: [0, Math.PI / 2, 0],
       },
       {
+        name: 'ls-candle',
         geometry: nodes['ls-candle'].geometry,
         material: materials['10.6.2024_0'],
-        position: [-3.15, 0.945, -2.564],
-        rotation: [Math.PI / 2, 0, -2.065],
-        scale: 0.34,
+        position: [-3.15, 0.945, -2.661],
       },
       {
+        name: 'alien_chair',
         geometry: nodes.alien_chair.geometry,
         material: materials.Material_0,
-        position: [2.802, 0.597, -1.92],
+        position: [2.802, 0.611, -2.378],
         rotation: [-Math.PI, 0.55, -Math.PI],
       },
       {
+        name: 'x-bock_couch',
         geometry: nodes['x-bock_couch'].geometry,
         material: materials['Material_0.002'],
-        position: [2.199, 0.17, -2.634],
+        position: [2.199, 0.183, -3.092],
         rotation: [0, 0.782, 0],
       },
       {
+        name: 'weblampe',
         geometry: nodes.weblampe.geometry,
         material: materials['Material_0.003'],
-        position: [0, 2.863, -3.463],
-        scale: 0.706,
       },
       {
+        name: 'speaker_module',
         geometry: nodes.speaker_module.geometry,
         material: materials['Material_0.004'],
-        position: [-2.357, -0.045, -4.3],
-        rotation: [0, 1.168, 0],
-        scale: 0.662,
+        position: [-2.65, -0.038, -4.528],
       },
       {
+        name: 'glowing_puppe',
         geometry: nodes.glowing_puppe.geometry,
         material: materials['Material_0.005'],
-        position: [-3.25, 1.435, -3.206],
-        rotation: [-Math.PI, 0.471, -Math.PI],
-        scale: 0.65,
+        position: [-3.25, 1.435, -3.303],
       },
       {
+        name: 'grillz_poster',
         geometry: nodes.grillz_poster.geometry,
         material: materials['Material.002'],
-        position: [1.152, 1.609, -5],
+        position: [2.046, 1.573, -13.532],
         scale: [1, 1, 0.5],
+      },
+      {
+        name: 'Mesh_0001',
+        geometry: nodes.Mesh_0001.geometry,
+        material: materials['Material_0.007'],
+        position: [-0.278, 0.613, -2.268],
+        rotation: [0, -1.218, 0],
+      },
+      {
+        name: 'Regalbretter001',
+        geometry: nodes.Regalbretter001.geometry,
+        material: materials['Polished Oak Wood'],
+        position: [-1.444, 1.3, -4.925],
+        rotation: [Math.PI, 0, Math.PI],
+      },
+      {
+        name: 'regal_(bild)',
+        geometry: nodes['regal_(bild)'].geometry,
+        material: materials.Material,
+        position: [-1.442, 1.798, -4.98],
       },
     ],
     [materials, nodes]
   )
 
-  const meshRefs = useRef([])
-  const { camera, gl, scene } = useThree()
-
-  useEffect(() => {
-    console.log('[Model] useEffect mount - setting up raycast listener on gl.domElement')
-    const raycaster = new THREE.Raycaster()
-
-    function onPointerDown(e) {
-      const rect = gl.domElement.getBoundingClientRect()
-      const x = ((e.clientX - rect.left) / rect.width) * 2 - 1
-      const y = -((e.clientY - rect.top) / rect.height) * 2 + 1
-      raycaster.setFromCamera({ x, y }, camera)
-      const objects = meshRefs.current.filter(Boolean).map((m) => m)
-      console.log('[Model] raycast attempt, meshRefs count:', objects.length)
-      // log names and positions
-      objects.forEach((o, i) => {
-        try {
-          console.log(`[Model] meshRefs[${i}] name:`, o.name, 'position:', o.position && o.position.toArray())
-        } catch (err) {}
-      })
-      const intersects = raycaster.intersectObjects(objects, true)
-      console.log('[Model] intersects length:', intersects.length)
-      if (intersects.length) {
-        console.log('[Model] raycast hit', intersects[0].object.name || intersects[0].object)
-        try {
-          window.dispatchEvent(new CustomEvent('model-click', { detail: { name: intersects[0].object.name } }))
-        } catch (err) {}
-        bounds.refresh(intersects[0].object).fit({ padding: 1.2, duration: 0.8 })
-        onZoomChange?.(true)
-      }
-    }
-
-    gl.domElement.addEventListener('pointerdown', onPointerDown)
-    return () => gl.domElement.removeEventListener('pointerdown', onPointerDown)
-  }, [camera, gl, bounds, onZoomChange])
-
-  const handlePointerOver = (e) => {
-    e.stopPropagation()
-    document.body.style.cursor = 'pointer'
-  }
-
-  const handlePointerOut = (e) => {
-    e.stopPropagation()
-    document.body.style.cursor = 'default'
-  }
-
-  const handleClick = (e) => {
-    e.stopPropagation()
-    console.log('[Model] handleClick, object:', e.object && e.object.name)
-    try {
-      window.dispatchEvent(new CustomEvent('model-click', { detail: { name: e.object && e.object.name } }))
-    } catch (err) {
-      console.warn('unable to dispatch model-click', err)
-    }
-    bounds.refresh(e.object).fit({ padding: 1.2, duration: 0.8 })
-    onZoomChange?.(true)
-  }
-
-  const handleBack = () => {
-    if (groupRef.current) bounds.refresh(groupRef.current).fit({ padding: 1.2, duration: 0.8 })
-    onZoomChange?.(false)
-    document.body.style.cursor = 'default'
-  }
-
   return (
-    <group ref={groupRef} {...props} dispose={null}>
+    <group {...props} dispose={null}>
       <mesh
+        name="Cube001"
+        geometry={nodes.Cube001.geometry}
+        material={nodes.Cube001.material}
+        position={[-1.75, -0.014, 2.733]}
+        scale={[450, 75, 75]}
+        raycast={() => null}
+      />
+      <mesh
+        name="Raum"
         geometry={nodes.Raum.geometry}
         material={materials.Paper}
         position={[0, 1.75, 0]}
-        scale={[0.401, 0.35, 0.513]}
         raycast={() => null}
       />
-      {clickableMeshes.map((meshProps, index) => (
+      {clickableMeshes.map((meshProps) => (
         <mesh
-          key={index}
-          ref={(el) => (meshRefs.current[index] = el)}
+          key={meshProps.name}
           {...meshProps}
-          onPointerOver={handlePointerOver}
-          onPointerOut={handlePointerOut}
-          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            onObjectClick?.(e.object)
+          }}
+          onPointerOver={(e) => {
+            e.stopPropagation()
+            document.body.style.cursor = 'pointer'
+          }}
+          onPointerOut={(e) => {
+            e.stopPropagation()
+            document.body.style.cursor = 'default'
+          }}
         />
       ))}
-      {/* back handler registered via useEffect */}
     </group>
   )
 }
-
-useGLTF.preload('/raum-transformed.glb')

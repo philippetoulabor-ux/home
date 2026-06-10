@@ -1,0 +1,19 @@
+{
+  "atlas": "/lightmaps/room-atlas.png",
+  "intensity": 1.5,
+  "meshes": [
+    "alien_chair",
+    "Cube001",
+    "Cube006",
+    "Cube007",
+    "grillz_poster",
+    "middleman",
+    "mm-bretter",
+    "Raum",
+    "Regalbretter001",
+    "Regalbretter002",
+    "speaker_module",
+    "weblampe",
+    "x-bock_couch"
+  ]
+}

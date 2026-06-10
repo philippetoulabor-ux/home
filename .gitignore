@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Blender source export (>100 MB); regenerate via npm run bake-lightmap
+public/home.glb

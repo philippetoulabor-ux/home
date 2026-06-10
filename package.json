@@ -1,5 +1,5 @@
 {
-  "name": "mein-3d-raum",
+  "name": "home",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "bake-lightmap": "blender \"$HOME/Desktop/webroom.blend\" --background --python scripts/bake-lightmap.py --python scripts/export-home-glb.py && npx gltfjsx public/home.glb --transform --keepnames -o Home-transformed.jsx && mv -f home-transformed.glb public/home-transformed.glb"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
