@@ -73,7 +73,7 @@ export async function applyLightmaps(nodes) {
     return
   }
 
-  const atlas = await loadAtlas(new URL(manifest.atlas, MANIFEST_URL).href)
+  const atlas = await loadAtlas(`${import.meta.env.BASE_URL}lightmaps/${manifest.atlas}`)
   const intensity = manifest.intensity ?? 1
   const meshSet = new Set(manifest.meshes ?? [])
 
