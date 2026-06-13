@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useLayoutEffect, useEffect } from 'react'
+import { useState, useRef, useCallback, useLayoutEffect, useEffect, Suspense } from 'react'
 import { Canvas } from '@react-three/fiber'
 import * as THREE from 'three'
 import { Model } from './Raum'
@@ -126,17 +126,19 @@ function App() {
             onReturnComplete={handleReturnComplete}
           />
 
-          <BlenderSceneSetup
-            controlsRef={controlsRef}
-            homeStateRef={homeStateRef}
-            roomViewActive={roomViewActive}
-          />
+          <Suspense fallback={null}>
+            <BlenderSceneSetup
+              controlsRef={controlsRef}
+              homeStateRef={homeStateRef}
+              roomViewActive={roomViewActive}
+            />
 
-          <Model
-            onObjectClick={(object) => {
-              setFocusObject(object)
-            }}
-          />
+            <Model
+              onObjectClick={(object) => {
+                setFocusObject(object)
+              }}
+            />
+          </Suspense>
         </Canvas>
       </div>
     </div>
