@@ -1,5 +1,5 @@
 {
-  "atlas": "/lightmaps/room-atlas.png",
+  "atlas": "room-atlas.png",
   "intensity": 1.5,
   "meshes": [
     "alien_chair",

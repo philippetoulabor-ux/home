@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 
-const MANIFEST_URL = '/lightmaps/manifest.json'
+const MANIFEST_URL = `${import.meta.env.BASE_URL}lightmaps/manifest.json`
 
 let manifestPromise = null
 let atlasTexture = null
@@ -73,7 +73,7 @@ export async function applyLightmaps(nodes) {
     return
   }
 
-  const atlas = await loadAtlas(manifest.atlas)
+  const atlas = await loadAtlas(new URL(manifest.atlas, MANIFEST_URL).href)
   const intensity = manifest.intensity ?? 1
   const meshSet = new Set(manifest.meshes ?? [])
 

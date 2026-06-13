@@ -5,7 +5,7 @@ import { RoomCameraFit } from './RoomCameraFit'
 import * as THREE from 'three'
 import { ROOM_TARGET_DISTANCE, applyRoomMode } from './SceneControls'
 
-export const GLB_PATH = '/home-transformed.glb'
+export const GLB_PATH = `${import.meta.env.BASE_URL}home-transformed.glb`
 
 // From public/home-transformed.glb → camera "Camera" (matches Blender render)
 export const BLENDER_CAMERA_PERSPECTIVE = {
